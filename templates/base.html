@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Flask MVP{% endblock %}</title>
+</head>
+<body>
+    <header>
+        <h1>Flask MVP</h1>
+        <nav>
+            <a href="{{ url_for('index') }}">ホーム</a> |
+            <a href="{{ url_for('create') }}">新規作成</a>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Flask MVP</p>
+    </footer>
+</body>
+</html>
