@@ -1,4 +1,3 @@
-<img width="2390" height="1370" alt="image" src="https://github.com/user-attachments/assets/2a17b1e3-2bf4-4bb5-8cb5-74b6c3c93b75" /># pyforge-mvp
 
 ## PyForge MVP
 
