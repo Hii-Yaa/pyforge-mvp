@@ -15,6 +15,7 @@ Python製ゲーム投稿プラットフォームのMVP。
 ```bash
 pip install -r requirements.txt
 python app.py
+```
 
 ### 技術スタック
 
