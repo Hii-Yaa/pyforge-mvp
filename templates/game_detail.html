@@ -21,6 +21,15 @@
 <form method="POST" action="{{ url_for('post_comment', game_id=game.id) }}">
     <textarea name="content" rows="4" cols="50" placeholder="Write a comment..." required maxlength="1000"></textarea>
     <br>
+    <label for="tag">Tag:</label>
+    <select name="tag" id="tag" required>
+        <option value="">-- Select Tag --</option>
+        <option value="feedback">感想 (Feedback)</option>
+        <option value="bug">バグ報告 (Bug Report)</option>
+        <option value="request">要望 (Request)</option>
+        <option value="discussion">仕様・議論 (Discussion)</option>
+    </select>
+    <br>
     <button type="submit">Post Comment</button>
 </form>
 
@@ -29,9 +38,21 @@
     {% macro render_comment(comment, depth=0) %}
     <div style="margin-left: {{ depth * 20 }}px; margin-top: 15px; padding: 10px; border-left: 2px solid #ccc;">
         <p>
+            {% if comment.tag == 'feedback' %}
+                <strong>[感想]</strong>
+            {% elif comment.tag == 'bug' %}
+                <strong>[バグ報告]</strong>
+            {% elif comment.tag == 'request' %}
+                <strong>[要望]</strong>
+            {% elif comment.tag == 'discussion' %}
+                <strong>[議論]</strong>
+            {% endif %}
             <strong>
                 {% if comment.user_id %}
                     {{ comment.author.username }}
+                    {% if comment.user_id == game.uploader_id %}
+                        ★
+                    {% endif %}
                 {% else %}
                     {{ comment.guest_name }}
                 {% endif %}
@@ -46,6 +67,15 @@
             <form method="POST" action="{{ url_for('post_comment', game_id=game.id) }}">
                 <input type="hidden" name="parent_id" value="{{ comment.id }}">
                 <textarea name="content" rows="3" cols="40" placeholder="Write a reply..." required maxlength="1000"></textarea>
+                <br>
+                <label for="tag-reply-{{ comment.id }}">Tag:</label>
+                <select name="tag" id="tag-reply-{{ comment.id }}" required>
+                    <option value="">-- Select Tag --</option>
+                    <option value="feedback">感想 (Feedback)</option>
+                    <option value="bug">バグ報告 (Bug Report)</option>
+                    <option value="request">要望 (Request)</option>
+                    <option value="discussion">仕様・議論 (Discussion)</option>
+                </select>
                 <br>
                 <button type="submit">Post Reply</button>
                 <button type="button" onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Cancel</button>
