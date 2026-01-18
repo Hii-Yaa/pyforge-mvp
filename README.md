@@ -43,3 +43,9 @@ Implemented:
 - Game upload (ZIP)
 - Public listing & download
 - Owner-only edit/delete
+
+## Comments (v0.2)
+- Anyone can post comments (logged-in users or guests)
+- Guest comments are posted as "guest"
+- Comments support replies using parent-child relationships
+- Comments are always visible below the download link
