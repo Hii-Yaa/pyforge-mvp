@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Game - Game Sharing Platform{% endblock %}
+
+{% block content %}
+<h2>Upload Game</h2>
+
+<form method="POST" enctype="multipart/form-data">
+    <div>
+        <label for="title">Game Title:</label><br>
+        <input type="text" id="title" name="title" required maxlength="200">
+    </div>
+    <br>
+    <div>
+        <label for="description">Description:</label><br>
+        <textarea id="description" name="description" rows="5" cols="50"></textarea>
+    </div>
+    <br>
+    <div>
+        <label for="game_file">Game File (ZIP only):</label><br>
+        <input type="file" id="game_file" name="game_file" accept=".zip" required>
+    </div>
+    <br>
+    <button type="submit">Upload</button>
+</form>
+
+<p><a href="{{ url_for('index') }}">Back to game list</a></p>
+{% endblock %}

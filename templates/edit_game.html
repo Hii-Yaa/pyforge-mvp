@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Game - Game Sharing Platform{% endblock %}
+
+{% block content %}
+<h2>Edit Game</h2>
+
+<form method="POST">
+    <div>
+        <label for="title">Game Title:</label><br>
+        <input type="text" id="title" name="title" value="{{ game.title }}" required maxlength="200">
+    </div>
+    <br>
+    <div>
+        <label for="description">Description:</label><br>
+        <textarea id="description" name="description" rows="5" cols="50">{{ game.description or '' }}</textarea>
+    </div>
+    <br>
+    <button type="submit">Update</button>
+</form>
+
+<p><a href="{{ url_for('game_detail', game_id=game.id) }}">Cancel</a></p>
+{% endblock %}

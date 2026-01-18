@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Game Sharing Platform{% endblock %}
+
+{% block content %}
+<h2>Login</h2>
+
+<form method="POST">
+    <div>
+        <label for="username">Username:</label><br>
+        <input type="text" id="username" name="username" required>
+    </div>
+    <br>
+    <div>
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password" required>
+    </div>
+    <br>
+    <button type="submit">Login</button>
+</form>
+
+<p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+{% endblock %}
