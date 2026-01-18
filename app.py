@@ -34,6 +34,29 @@ with app.app_context():
             comment.target_id = comment.game_id
         db.session.commit()
 
+    # Migration: Initialize soft delete fields for existing comments
+    # Set is_deleted=False for any existing comments that don't have this field set
+    try:
+        comments_to_update = Comment.query.filter(Comment.is_deleted == None).all()
+        if comments_to_update:
+            for comment in comments_to_update:
+                comment.is_deleted = False
+            db.session.commit()
+    except Exception:
+        # Column might not exist yet on first run after schema update
+        db.session.rollback()
+
+    # Migration: Initialize is_admin for existing users
+    try:
+        users_to_update = User.query.filter(User.is_admin == None).all()
+        if users_to_update:
+            for user in users_to_update:
+                user.is_admin = False
+            db.session.commit()
+    except Exception:
+        # Column might not exist yet on first run after schema update
+        db.session.rollback()
+
 
 # Flask-Login user loader
 @login_manager.user_loader
@@ -86,6 +109,21 @@ def auto_restore_hidden_comments(comments):
         # Recursively check replies
         if comment.replies:
             auto_restore_hidden_comments(comment.replies)
+
+
+def admin_required(f):
+    """Decorator to require admin privileges."""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            flash('Please log in to access this page.', 'warning')
+            return redirect(url_for('login'))
+        if not current_user.is_admin:
+            flash('Admin privileges required.', 'danger')
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ============================================================================
@@ -243,9 +281,11 @@ def game_detail(game_id):
     # Get filter parameters
     tag_filter = request.args.get('tag_filter', '')
     show_hidden = request.args.get('show_hidden', 'false') == 'true'
+    show_deleted = request.args.get('show_deleted', 'false') == 'true'
 
-    # Check if current user is the author
+    # Check if current user is the author or admin
     is_author = current_user.is_authenticated and current_user.id == game.uploader_id
+    is_admin = current_user.is_authenticated and current_user.is_admin
 
     # Load all top-level comments
     query = Comment.query.filter_by(game_id=game_id, parent_id=None)
@@ -262,10 +302,17 @@ def game_detail(game_id):
     auto_restore_hidden_comments(comments)
     db.session.commit()
 
-    # Filter out hidden comments based on user role
+    # Filter out hidden and deleted comments based on user role
     def filter_comments(comment_list):
         filtered = []
         for comment in comment_list:
+            # Filter deleted comments (admin-only visibility)
+            if comment.is_deleted:
+                if is_admin and show_deleted:
+                    filtered.append(comment)
+                # Non-admins and admins without show_deleted flag: skip
+                continue
+
             # Filter hidden comments
             if comment.tag == 'hidden':
                 if is_author and show_hidden:
@@ -283,7 +330,8 @@ def game_detail(game_id):
     comments = filter_comments(comments)
 
     return render_template('game_detail.html', game=game, comments=comments,
-                         tag_filter=tag_filter, show_hidden=show_hidden, is_author=is_author)
+                         tag_filter=tag_filter, show_hidden=show_hidden,
+                         show_deleted=show_deleted, is_author=is_author, is_admin=is_admin)
 
 
 @app.route('/game/<int:game_id>/download')
@@ -453,6 +501,55 @@ def change_comment_tag(game_id, comment_id):
     return redirect(url_for('game_detail', game_id=game_id))
 
 
+@app.route('/comment/<int:comment_id>/delete', methods=['POST'])
+@admin_required
+def delete_comment(comment_id):
+    """Soft delete a comment - admin only."""
+    comment = Comment.query.get_or_404(comment_id)
+
+    # Get optional reason
+    reason = request.form.get('reason', '').strip() or None
+
+    # Soft delete the comment
+    comment.is_deleted = True
+    comment.deleted_at = datetime.utcnow()
+    comment.deleted_by_user_id = current_user.id
+    comment.delete_reason = reason
+
+    db.session.commit()
+
+    flash('Comment deleted successfully.', 'success')
+
+    # Redirect back to the appropriate page
+    if comment.target_type == 'game' and comment.target_id:
+        return redirect(url_for('game_detail', game_id=comment.target_id))
+    else:
+        return redirect(url_for('requests_board'))
+
+
+@app.route('/comment/<int:comment_id>/restore', methods=['POST'])
+@admin_required
+def restore_comment(comment_id):
+    """Restore a soft-deleted comment - admin only."""
+    comment = Comment.query.get_or_404(comment_id)
+
+    # Restore the comment
+    comment.is_deleted = False
+    comment.deleted_at = None
+    comment.deleted_by_user_id = None
+    comment.delete_reason = None
+
+    db.session.commit()
+
+    flash('Comment restored successfully.', 'success')
+
+    # Redirect back to the appropriate page
+    if comment.target_type == 'game' and comment.target_id:
+        return redirect(url_for('game_detail', game_id=comment.target_id))
+    else:
+        return redirect(url_for('requests_board'))
+
+
 # ============================================================================
 # REQUESTS BOARD ROUTES
 # ============================================================================
@@ -462,6 +559,10 @@ def requests_board():
     """Requests board page - public, shows all request board comments."""
     # Get filter parameters
     tag_filter = request.args.get('tag_filter', '')
+    show_deleted = request.args.get('show_deleted', 'false') == 'true'
+
+    # Check if current user is admin
+    is_admin = current_user.is_authenticated and current_user.is_admin
 
     # Load all top-level requests board comments
     query = Comment.query.filter_by(target_type='request', parent_id=None)
@@ -478,20 +579,29 @@ def requests_board():
     auto_restore_hidden_comments(comments)
     db.session.commit()
 
-    # Filter out hidden comments (no author concept on requests board, so hide from everyone)
-    def filter_hidden(comment_list):
+    # Filter out hidden and deleted comments
+    def filter_comments(comment_list):
         filtered = []
         for comment in comment_list:
+            # Filter deleted comments (admin-only visibility)
+            if comment.is_deleted:
+                if is_admin and show_deleted:
+                    filtered.append(comment)
+                # Non-admins and admins without show_deleted flag: skip
+                continue
+
+            # Filter hidden comments (no author concept on requests board, so hide from everyone)
             if comment.tag != 'hidden':
                 filtered.append(comment)
                 # Recursively filter replies
                 if comment.replies:
-                    comment.replies = filter_hidden(comment.replies)
+                    comment.replies = filter_comments(comment.replies)
         return filtered
 
-    comments = filter_hidden(comments)
+    comments = filter_comments(comments)
 
-    return render_template('requests.html', comments=comments, tag_filter=tag_filter)
+    return render_template('requests.html', comments=comments, tag_filter=tag_filter,
+                         show_deleted=show_deleted, is_admin=is_admin)
 
 
 @app.route('/requests/comment', methods=['POST'])

@@ -37,6 +37,14 @@
                 Show Hidden
             </label>
         {% endif %}
+
+        {% if is_admin %}
+            <label for="show_deleted" style="margin-left: 15px;">
+                <input type="checkbox" name="show_deleted" id="show_deleted" value="true"
+                       {% if show_deleted %}checked{% endif %} onchange="this.form.submit()">
+                Show Deleted (Admin)
+            </label>
+        {% endif %}
     </form>
 </div>
 
@@ -59,8 +67,11 @@
 <!-- Display comments -->
 {% if comments %}
     {% macro render_comment(comment, depth=0) %}
-    <div style="margin-left: {{ depth * 20 }}px; margin-top: 15px; padding: 10px; border-left: 2px solid #ccc;">
+    <div style="margin-left: {{ depth * 20 }}px; margin-top: 15px; padding: 10px; border-left: 2px solid {% if comment.is_deleted %}#ff6b6b{% else %}#ccc{% endif %}; {% if comment.is_deleted %}background-color: #ffe0e0;{% endif %}">
         <p>
+            {% if comment.is_deleted %}
+                <strong style="color: #ff0000;">[DELETED]</strong>
+            {% endif %}
             {% if comment.tag == 'feedback' %}
                 <strong>[感想]</strong>
             {% elif comment.tag == 'bug' %}
@@ -84,10 +95,17 @@
             </strong>
             <small>{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
         </p>
-        <p>{{ comment.content }}</p>
-        <button onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Reply</button>
+        {% if comment.is_deleted %}
+            <p style="color: #666; font-style: italic;">[Content deleted{% if comment.delete_reason %}: {{ comment.delete_reason }}{% endif %}]</p>
+        {% else %}
+            <p>{{ comment.content }}</p>
+        {% endif %}
 
-        {% if is_author %}
+        {% if not comment.is_deleted %}
+            <button onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Reply</button>
+        {% endif %}
+
+        {% if is_author and not comment.is_deleted %}
             <!-- Author can change tag -->
             <form method="POST" action="{{ url_for('change_comment_tag', game_id=game.id, comment_id=comment.id) }}" style="display: inline; margin-left: 10px;">
                 <label for="new-tag-{{ comment.id }}">Change tag:</label>
@@ -100,6 +118,24 @@
                     <option value="hidden" {% if comment.tag == 'hidden' %}selected{% endif %}>非表示</option>
                 </select>
             </form>
+        {% endif %}
+
+        {% if is_admin %}
+            <!-- Admin can delete/restore -->
+            {% if comment.is_deleted %}
+                <form method="POST" action="{{ url_for('restore_comment', comment_id=comment.id) }}" style="display: inline; margin-left: 10px;">
+                    <button type="submit" style="color: green;">Restore</button>
+                </form>
+            {% else %}
+                <button onclick="toggleDeleteForm('delete-form-{{ comment.id }}')" style="color: red; margin-left: 10px;">Delete</button>
+                <div id="delete-form-{{ comment.id }}" style="display: none; margin-top: 5px;">
+                    <form method="POST" action="{{ url_for('delete_comment', comment_id=comment.id) }}" style="display: inline;">
+                        <input type="text" name="reason" placeholder="Reason (optional)" size="30">
+                        <button type="submit" style="color: red;">Confirm Delete</button>
+                        <button type="button" onclick="toggleDeleteForm('delete-form-{{ comment.id }}')">Cancel</button>
+                    </form>
+                </div>
+            {% endif %}
         {% endif %}
 
         <!-- Reply form (hidden by default) -->
@@ -140,6 +176,15 @@
 
 <script>
 function toggleReplyForm(formId) {
+    var form = document.getElementById(formId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+function toggleDeleteForm(formId) {
     var form = document.getElementById(formId);
     if (form.style.display === 'none') {
         form.style.display = 'block';

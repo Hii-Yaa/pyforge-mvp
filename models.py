@@ -12,6 +12,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(128), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     # Relationship to games
     games = db.relationship('Game', backref='uploader', lazy=True, cascade='all, delete-orphan')
@@ -65,8 +66,15 @@ class Comment(db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)  # Self-referential for replies
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Soft delete fields
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    delete_reason = db.Column(db.String(200), nullable=True)
+
     # Relationships
-    author = db.relationship('User', backref='comments', lazy=True)
+    author = db.relationship('User', foreign_keys=[user_id], backref='comments', lazy=True)
+    deleted_by = db.relationship('User', foreign_keys=[deleted_by_user_id], lazy=True)
     replies = db.relationship('Comment', backref=db.backref('parent', remote_side=[id]), lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
