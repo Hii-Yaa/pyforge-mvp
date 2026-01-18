@@ -26,6 +26,8 @@ wheels/
 # Flask
 instance/
 .env
+*.db
+uploads/
 
 # IDE
 .vscode/
