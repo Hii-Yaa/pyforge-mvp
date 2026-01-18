@@ -276,6 +276,7 @@ def post_comment(game_id):
     game = Game.query.get_or_404(game_id)
 
     content = request.form.get('content', '').strip()
+    tag = request.form.get('tag', '').strip()
     parent_id = request.form.get('parent_id', None)
 
     # Validation
@@ -285,6 +286,12 @@ def post_comment(game_id):
 
     if len(content) > 1000:
         flash('Comment is too long (maximum 1000 characters).', 'error')
+        return redirect(url_for('game_detail', game_id=game_id))
+
+    # Validate tag
+    ALLOWED_TAGS = ['feedback', 'bug', 'request', 'discussion']
+    if not tag or tag not in ALLOWED_TAGS:
+        flash('Invalid tag. Please select a valid tag.', 'error')
         return redirect(url_for('game_detail', game_id=game_id))
 
     # Validate parent_id if provided
@@ -301,6 +308,7 @@ def post_comment(game_id):
     # Create comment
     comment = Comment(
         content=content,
+        tag=tag,
         game_id=game_id,
         user_id=current_user.id if current_user.is_authenticated else None,
         guest_name='guest',  # Always 'guest' for non-authenticated users

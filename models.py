@@ -49,6 +49,7 @@ class Comment(db.Model):
     """Comment model for game comments and replies."""
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
+    tag = db.Column(db.String(20), nullable=False)  # Tag: feedback, bug, request, discussion
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Null for guests
     guest_name = db.Column(db.String(50), default='guest')
