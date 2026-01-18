@@ -3,8 +3,9 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.utils import secure_filename
 from email_validator import validate_email, EmailNotValidError
 from config import Config
-from models import db, User, Game, Comment
+from models import db, User, Game, Comment, CommentTagHistory
 from urllib.parse import urlparse, urljoin
+from datetime import datetime, timedelta
 import os
 
 app = Flask(__name__)
@@ -47,6 +48,35 @@ def is_safe_url(target):
     ref_url = urlparse(request.host_url)
     test_url = urlparse(urljoin(request.host_url, target))
     return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
+
+def record_tag_change(comment, old_tag, new_tag, changed_by_user_id=None, changed_by='system'):
+    """Record tag change in history."""
+    history = CommentTagHistory(
+        comment_id=comment.id,
+        old_tag=old_tag,
+        new_tag=new_tag,
+        changed_by_user_id=changed_by_user_id,
+        changed_by=changed_by
+    )
+    db.session.add(history)
+
+
+def auto_restore_hidden_comments(comments):
+    """Auto-restore comments that have been hidden for 7+ days."""
+    now = datetime.utcnow()
+    for comment in comments:
+        if comment.tag == 'hidden' and comment.hidden_at:
+            days_hidden = (now - comment.hidden_at).days
+            if days_hidden >= 7:
+                # Restore original tag
+                old_tag = comment.tag
+                comment.tag = comment.original_tag
+                comment.hidden_at = None
+                record_tag_change(comment, old_tag, comment.tag, changed_by='system')
+        # Recursively check replies
+        if comment.replies:
+            auto_restore_hidden_comments(comment.replies)
 
 
 # ============================================================================
@@ -200,9 +230,51 @@ def upload_game():
 def game_detail(game_id):
     """Game detail page - public, shows metadata and download button."""
     game = Game.query.get_or_404(game_id)
-    # Load all comments for this game, ordered by creation time
-    comments = Comment.query.filter_by(game_id=game_id, parent_id=None).order_by(Comment.created_at.asc()).all()
-    return render_template('game_detail.html', game=game, comments=comments)
+
+    # Get filter parameters
+    tag_filter = request.args.get('tag_filter', '')
+    show_hidden = request.args.get('show_hidden', 'false') == 'true'
+
+    # Check if current user is the author
+    is_author = current_user.is_authenticated and current_user.id == game.uploader_id
+
+    # Load all top-level comments
+    query = Comment.query.filter_by(game_id=game_id, parent_id=None)
+
+    # Apply tag filter
+    if tag_filter == 'no_tag':
+        query = query.filter(Comment.tag.is_(None))
+    elif tag_filter and tag_filter != 'all':
+        query = query.filter_by(tag=tag_filter)
+
+    comments = query.order_by(Comment.created_at.asc()).all()
+
+    # Auto-restore hidden comments (7-day rule)
+    auto_restore_hidden_comments(comments)
+    db.session.commit()
+
+    # Filter out hidden comments based on user role
+    def filter_comments(comment_list):
+        filtered = []
+        for comment in comment_list:
+            # Filter hidden comments
+            if comment.tag == 'hidden':
+                if is_author and show_hidden:
+                    filtered.append(comment)
+                # Non-authors and authors without show_hidden flag: skip
+            else:
+                filtered.append(comment)
+
+            # Recursively filter replies
+            if comment.replies:
+                comment.replies = filter_comments(comment.replies)
+
+        return filtered
+
+    comments = filter_comments(comments)
+
+    return render_template('game_detail.html', game=game, comments=comments,
+                         tag_filter=tag_filter, show_hidden=show_hidden, is_author=is_author)
 
 
 @app.route('/game/<int:game_id>/download')
@@ -276,7 +348,7 @@ def post_comment(game_id):
     game = Game.query.get_or_404(game_id)
 
     content = request.form.get('content', '').strip()
-    tag = request.form.get('tag', '').strip()
+    tag = request.form.get('tag', '').strip() or None  # Allow empty tag
     parent_id = request.form.get('parent_id', None)
 
     # Validation
@@ -288,9 +360,9 @@ def post_comment(game_id):
         flash('Comment is too long (maximum 1000 characters).', 'error')
         return redirect(url_for('game_detail', game_id=game_id))
 
-    # Validate tag
+    # Validate tag (optional but must be valid if provided)
     ALLOWED_TAGS = ['feedback', 'bug', 'request', 'discussion']
-    if not tag or tag not in ALLOWED_TAGS:
+    if tag and tag not in ALLOWED_TAGS:
         flash('Invalid tag. Please select a valid tag.', 'error')
         return redirect(url_for('game_detail', game_id=game_id))
 
@@ -319,6 +391,54 @@ def post_comment(game_id):
     db.session.commit()
 
     flash('Comment posted successfully!', 'success')
+    return redirect(url_for('game_detail', game_id=game_id))
+
+
+@app.route('/game/<int:game_id>/comment/<int:comment_id>/change_tag', methods=['POST'])
+@login_required
+def change_comment_tag(game_id, comment_id):
+    """Change a comment's tag - only game author can do this."""
+    game = Game.query.get_or_404(game_id)
+    comment = Comment.query.get_or_404(comment_id)
+
+    # Authorization check: only game author
+    if game.uploader_id != current_user.id:
+        flash('You do not have permission to change comment tags on this game.', 'error')
+        abort(403)
+
+    # Verify comment belongs to this game
+    if comment.game_id != game_id:
+        flash('Invalid comment.', 'error')
+        abort(400)
+
+    new_tag = request.form.get('new_tag', '').strip() or None
+
+    # Validate new tag
+    ALLOWED_TAGS = ['feedback', 'bug', 'request', 'discussion', 'hidden']
+    if new_tag and new_tag not in ALLOWED_TAGS:
+        flash('Invalid tag.', 'error')
+        return redirect(url_for('game_detail', game_id=game_id))
+
+    # Record change
+    old_tag = comment.tag
+
+    # If changing to hidden, save current tag as original_tag
+    if new_tag == 'hidden':
+        comment.original_tag = old_tag
+        comment.hidden_at = datetime.utcnow()
+    elif old_tag == 'hidden':
+        # Restoring from hidden - clear hidden fields
+        comment.hidden_at = None
+        comment.original_tag = None
+
+    comment.tag = new_tag
+
+    # Record history
+    record_tag_change(comment, old_tag, new_tag, current_user.id, f'user_{current_user.id}')
+
+    db.session.commit()
+
+    flash('Comment tag updated successfully!', 'success')
     return redirect(url_for('game_detail', game_id=game_id))
 
 

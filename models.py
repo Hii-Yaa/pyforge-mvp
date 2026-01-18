@@ -49,7 +49,9 @@ class Comment(db.Model):
     """Comment model for game comments and replies."""
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
-    tag = db.Column(db.String(20), nullable=False)  # Tag: feedback, bug, request, discussion
+    tag = db.Column(db.String(20), nullable=True)  # Tag: feedback, bug, request, discussion, hidden, or None
+    original_tag = db.Column(db.String(20), nullable=True)  # Stores tag before hidden
+    hidden_at = db.Column(db.DateTime, nullable=True)  # Timestamp when tagged as hidden
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Null for guests
     guest_name = db.Column(db.String(50), default='guest')
@@ -62,3 +64,20 @@ class Comment(db.Model):
 
     def __repr__(self):
         return f'<Comment {self.id} on Game {self.game_id}>'
+
+
+class CommentTagHistory(db.Model):
+    """History of comment tag changes."""
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=False)
+    old_tag = db.Column(db.String(20), nullable=True)
+    new_tag = db.Column(db.String(20), nullable=True)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Null for system
+    changed_by = db.Column(db.String(50), default='system')  # 'system' or user ID
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    comment = db.relationship('Comment', backref='tag_history', lazy=True)
+
+    def __repr__(self):
+        return f'<TagHistory {self.comment_id}: {self.old_tag} -> {self.new_tag}>'
