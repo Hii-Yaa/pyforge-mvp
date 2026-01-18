@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.title }} - Flask MVP{% endblock %}
+
+{% block content %}
+<h2>アイテム詳細</h2>
+
+<dl>
+    <dt>タイトル:</dt>
+    <dd>{{ item.title }}</dd>
+
+    <dt>説明:</dt>
+    <dd>{{ item.description or '説明なし' }}</dd>
+
+    <dt>作成日時:</dt>
+    <dd>{{ item.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+</dl>
+
+<p>
+    <a href="{{ url_for('index') }}">一覧に戻る</a>
+</p>
+
+<form method="POST" action="{{ url_for('delete', item_id=item.id) }}">
+    <button type="submit" onclick="return confirm('本当に削除しますか？')">削除</button>
+</form>
+{% endblock %}
