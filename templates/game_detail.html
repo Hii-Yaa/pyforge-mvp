@@ -14,6 +14,71 @@
     <a href="{{ url_for('download_game', game_id=game.id) }}">Download Game</a>
 </p>
 
+<hr>
+<h3>Comments</h3>
+
+<!-- Main comment form -->
+<form method="POST" action="{{ url_for('post_comment', game_id=game.id) }}">
+    <textarea name="content" rows="4" cols="50" placeholder="Write a comment..." required maxlength="1000"></textarea>
+    <br>
+    <button type="submit">Post Comment</button>
+</form>
+
+<!-- Display comments -->
+{% if comments %}
+    {% macro render_comment(comment, depth=0) %}
+    <div style="margin-left: {{ depth * 20 }}px; margin-top: 15px; padding: 10px; border-left: 2px solid #ccc;">
+        <p>
+            <strong>
+                {% if comment.user_id %}
+                    {{ comment.author.username }}
+                {% else %}
+                    {{ comment.guest_name }}
+                {% endif %}
+            </strong>
+            <small>{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </p>
+        <p>{{ comment.content }}</p>
+        <button onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Reply</button>
+
+        <!-- Reply form (hidden by default) -->
+        <div id="reply-form-{{ comment.id }}" style="display: none; margin-top: 10px;">
+            <form method="POST" action="{{ url_for('post_comment', game_id=game.id) }}">
+                <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                <textarea name="content" rows="3" cols="40" placeholder="Write a reply..." required maxlength="1000"></textarea>
+                <br>
+                <button type="submit">Post Reply</button>
+                <button type="button" onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Cancel</button>
+            </form>
+        </div>
+
+        <!-- Render replies recursively -->
+        {% if comment.replies %}
+            {% for reply in comment.replies|sort(attribute='created_at') %}
+                {{ render_comment(reply, depth + 1) }}
+            {% endfor %}
+        {% endif %}
+    </div>
+    {% endmacro %}
+
+    {% for comment in comments %}
+        {{ render_comment(comment) }}
+    {% endfor %}
+{% else %}
+    <p>No comments yet. Be the first to comment!</p>
+{% endif %}
+
+<script>
+function toggleReplyForm(formId) {
+    var form = document.getElementById(formId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+</script>
+
 {% if current_user.is_authenticated and current_user.id == game.uploader_id %}
     <hr>
     <h3>Author Actions</h3>

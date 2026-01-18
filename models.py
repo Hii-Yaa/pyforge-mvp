@@ -38,5 +38,26 @@ class Game(db.Model):
     uploader_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Relationship to comments
+    comments = db.relationship('Comment', backref='game', lazy=True, cascade='all, delete-orphan')
+
     def __repr__(self):
         return f'<Game {self.title}>'
+
+
+class Comment(db.Model):
+    """Comment model for game comments and replies."""
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Null for guests
+    guest_name = db.Column(db.String(50), default='guest')
+    parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)  # Self-referential for replies
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    author = db.relationship('User', backref='comments', lazy=True)
+    replies = db.relationship('Comment', backref=db.backref('parent', remote_side=[id]), lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Comment {self.id} on Game {self.game_id}>'

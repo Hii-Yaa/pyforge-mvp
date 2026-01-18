@@ -3,7 +3,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.utils import secure_filename
 from email_validator import validate_email, EmailNotValidError
 from config import Config
-from models import db, User, Game
+from models import db, User, Game, Comment
 from urllib.parse import urlparse, urljoin
 import os
 
@@ -200,7 +200,9 @@ def upload_game():
 def game_detail(game_id):
     """Game detail page - public, shows metadata and download button."""
     game = Game.query.get_or_404(game_id)
-    return render_template('game_detail.html', game=game)
+    # Load all comments for this game, ordered by creation time
+    comments = Comment.query.filter_by(game_id=game_id, parent_id=None).order_by(Comment.created_at.asc()).all()
+    return render_template('game_detail.html', game=game, comments=comments)
 
 
 @app.route('/game/<int:game_id>/download')
@@ -266,6 +268,50 @@ def delete_game(game_id):
 
     flash('Game deleted successfully.', 'success')
     return redirect(url_for('index'))
+
+
+@app.route('/game/<int:game_id>/comment', methods=['POST'])
+def post_comment(game_id):
+    """Post a comment or reply to a game - open to both users and guests."""
+    game = Game.query.get_or_404(game_id)
+
+    content = request.form.get('content', '').strip()
+    parent_id = request.form.get('parent_id', None)
+
+    # Validation
+    if not content:
+        flash('Comment cannot be empty.', 'error')
+        return redirect(url_for('game_detail', game_id=game_id))
+
+    if len(content) > 1000:
+        flash('Comment is too long (maximum 1000 characters).', 'error')
+        return redirect(url_for('game_detail', game_id=game_id))
+
+    # Validate parent_id if provided
+    if parent_id:
+        try:
+            parent_id = int(parent_id)
+            parent_comment = Comment.query.get(parent_id)
+            if not parent_comment or parent_comment.game_id != game_id:
+                flash('Invalid reply target.', 'error')
+                return redirect(url_for('game_detail', game_id=game_id))
+        except ValueError:
+            parent_id = None
+
+    # Create comment
+    comment = Comment(
+        content=content,
+        game_id=game_id,
+        user_id=current_user.id if current_user.is_authenticated else None,
+        guest_name='guest',  # Always 'guest' for non-authenticated users
+        parent_id=parent_id
+    )
+
+    db.session.add(comment)
+    db.session.commit()
+
+    flash('Comment posted successfully!', 'success')
+    return redirect(url_for('game_detail', game_id=game_id))
 
 
 if __name__ == '__main__':
