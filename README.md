@@ -50,6 +50,16 @@ Implemented:
 - Comments support replies using parent-child relationships
 - Comments are always visible below the download link
 
+## Requests Board (v0.3)
+- Global discussion board accessible from the navigation menu
+- Separate from per-game comments - for platform-wide requests and feedback
+- Anyone can post (logged-in users or guests, default guest name: "guest")
+- Supports nested replies via parent_id (same as game comments)
+- Tag system: feedback, bug, request, discussion, or no tag
+- Tag filtering available (same as game comments)
+- No author concept (unlike game comments, no special permissions)
+- Hidden comments automatically filtered out for all users
+
 ## コメント機能（MVP）
 
 ゲーム詳細ページ（Downloadリンクの下）にコメント欄があります。  
@@ -90,6 +100,28 @@ Implemented:
 
 ---
 
+## Requests Board（要望掲示板）
+
+ナビゲーションメニューから「Requests」をクリックすると、サイト全体への要望や議論を投稿できる専用ページが開きます。
+
+### できること
+
+#### 1. グローバルな議論の場
+- ゲーム個別のコメントとは別に、プラットフォーム全体への要望・フィードバック・バグ報告などを投稿できます。
+- ゲストでもログインユーザーでも投稿可能（ゲスト名はデフォルトで `guest`）。
+
+#### 2. ゲームコメントと同じ機能
+- 返信機能（parent_id によるネスト対応）
+- タグ機能（感想/バグ/要望/議論/タグなし）
+- タグによる絞り込み表示
+
+#### 3. ゲームコメントとの違い
+- 特定のゲームに紐づかない（プラットフォーム全体の掲示板）
+- 作者という概念がないため、タグ変更や★マークなどの権限機能はなし
+- Hiddenコメントは全員に非表示
+
+---
+
 ### データ保存（SQLite）
 - ローカルでは SQLite を使用します。
 - DBファイルはプロジェクトの `instance/` 配下（例：`instance/app.db`）に作成されます。
@@ -100,5 +132,5 @@ Implemented:
 - コメント本文検索、並び替え（新しい順/古い順）
 - 通報機能（通報数を管理者が確認）
 - 管理者アカウント（is_admin）と管理画面（通報/hidden一覧、削除判断など）
-- ホームに「サイト全体への要望」掲示板（グローバルスレッド）
+- ~~ホームに「サイト全体への要望」掲示板（グローバルスレッド）~~ ✅ 実装済み (v0.3 Requests Board)
 - スパム対策（レート制限、CAPTCHA、NGワードなど）

@@ -46,13 +46,20 @@ class Game(db.Model):
 
 
 class Comment(db.Model):
-    """Comment model for game comments and replies."""
+    """Comment model for game comments, requests board, and replies."""
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     tag = db.Column(db.String(20), nullable=True)  # Tag: feedback, bug, request, discussion, hidden, or None
     original_tag = db.Column(db.String(20), nullable=True)  # Stores tag before hidden
     hidden_at = db.Column(db.DateTime, nullable=True)  # Timestamp when tagged as hidden
-    game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
+
+    # Target identification: "game" or "request"
+    target_type = db.Column(db.String(20), nullable=False, default='game')
+    target_id = db.Column(db.Integer, nullable=True)  # game_id for game comments, NULL for requests board
+
+    # Legacy field - now nullable for backwards compatibility
+    game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=True)
+
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Null for guests
     guest_name = db.Column(db.String(50), default='guest')
     parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)  # Self-referential for replies
@@ -63,7 +70,10 @@ class Comment(db.Model):
     replies = db.relationship('Comment', backref=db.backref('parent', remote_side=[id]), lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
-        return f'<Comment {self.id} on Game {self.game_id}>'
+        if self.target_type == 'game':
+            return f'<Comment {self.id} on Game {self.target_id}>'
+        else:
+            return f'<Comment {self.id} on {self.target_type.capitalize()} Board>'
 
 
 class CommentTagHistory(db.Model):

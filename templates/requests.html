@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Requests Board - Game Sharing Platform{% endblock %}
+
+{% block content %}
+<h2>Requests Board</h2>
+<p>This is a global board for feature requests, feedback, and general discussion. Everyone can post!</p>
+
+<hr>
+
+<!-- Filter UI -->
+<div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px;">
+    <form method="GET" action="{{ url_for('requests_board') }}" style="display: inline;">
+        <label for="tag_filter">Filter by tag:</label>
+        <select name="tag_filter" id="tag_filter" onchange="this.form.submit()">
+            <option value="all" {% if not tag_filter or tag_filter == 'all' %}selected{% endif %}>All</option>
+            <option value="no_tag" {% if tag_filter == 'no_tag' %}selected{% endif %}>No Tag</option>
+            <option value="feedback" {% if tag_filter == 'feedback' %}selected{% endif %}>感想 (Feedback)</option>
+            <option value="bug" {% if tag_filter == 'bug' %}selected{% endif %}>バグ報告 (Bug)</option>
+            <option value="request" {% if tag_filter == 'request' %}selected{% endif %}>要望 (Request)</option>
+            <option value="discussion" {% if tag_filter == 'discussion' %}selected{% endif %}>仕様・議論 (Discussion)</option>
+        </select>
+    </form>
+</div>
+
+<!-- Main comment form -->
+<h3>Post a New Request or Comment</h3>
+<form method="POST" action="{{ url_for('post_request_comment') }}">
+    <textarea name="content" rows="4" cols="50" placeholder="Write your request or comment..." required maxlength="1000"></textarea>
+    <br>
+    <label for="tag">Tag (optional):</label>
+    <select name="tag" id="tag">
+        <option value="">-- No Tag --</option>
+        <option value="feedback">感想 (Feedback)</option>
+        <option value="bug">バグ報告 (Bug Report)</option>
+        <option value="request">要望 (Request)</option>
+        <option value="discussion">仕様・議論 (Discussion)</option>
+    </select>
+    <br>
+    <button type="submit">Post</button>
+</form>
+
+<hr>
+<h3>All Posts</h3>
+
+<!-- Display comments -->
+{% if comments %}
+    {% macro render_comment(comment, depth=0) %}
+    <div style="margin-left: {{ depth * 20 }}px; margin-top: 15px; padding: 10px; border-left: 2px solid #ccc;">
+        <p>
+            {% if comment.tag == 'feedback' %}
+                <strong>[感想]</strong>
+            {% elif comment.tag == 'bug' %}
+                <strong>[バグ報告]</strong>
+            {% elif comment.tag == 'request' %}
+                <strong>[要望]</strong>
+            {% elif comment.tag == 'discussion' %}
+                <strong>[議論]</strong>
+            {% endif %}
+            <strong>
+                {% if comment.user_id %}
+                    {{ comment.author.username }}
+                {% else %}
+                    {{ comment.guest_name }}
+                {% endif %}
+            </strong>
+            <small>{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </p>
+        <p>{{ comment.content }}</p>
+        <button onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Reply</button>
+
+        <!-- Reply form (hidden by default) -->
+        <div id="reply-form-{{ comment.id }}" style="display: none; margin-top: 10px;">
+            <form method="POST" action="{{ url_for('post_request_comment') }}">
+                <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                <textarea name="content" rows="3" cols="40" placeholder="Write a reply..." required maxlength="1000"></textarea>
+                <br>
+                <label for="tag-reply-{{ comment.id }}">Tag (optional):</label>
+                <select name="tag" id="tag-reply-{{ comment.id }}">
+                    <option value="">-- No Tag --</option>
+                    <option value="feedback">感想 (Feedback)</option>
+                    <option value="bug">バグ報告 (Bug Report)</option>
+                    <option value="request">要望 (Request)</option>
+                    <option value="discussion">仕様・議論 (Discussion)</option>
+                </select>
+                <br>
+                <button type="submit">Post Reply</button>
+                <button type="button" onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Cancel</button>
+            </form>
+        </div>
+
+        <!-- Render replies recursively -->
+        {% if comment.replies %}
+            {% for reply in comment.replies|sort(attribute='created_at') %}
+                {{ render_comment(reply, depth + 1) }}
+            {% endfor %}
+        {% endif %}
+    </div>
+    {% endmacro %}
+
+    {% for comment in comments %}
+        {{ render_comment(comment) }}
+    {% endfor %}
+{% else %}
+    <p>No posts yet. Be the first to post!</p>
+{% endif %}
+
+<script>
+function toggleReplyForm(formId) {
+    var form = document.getElementById(formId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+</script>
+
+<p><a href="{{ url_for('index') }}">Back to home</a></p>
+{% endblock %}

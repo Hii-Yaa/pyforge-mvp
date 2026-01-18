@@ -25,6 +25,15 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 with app.app_context():
     db.create_all()
 
+    # Migration: Update existing comments to have target_type and target_id
+    # This ensures backwards compatibility with existing data
+    comments_to_migrate = Comment.query.filter(Comment.target_type == None).all()
+    if comments_to_migrate:
+        for comment in comments_to_migrate:
+            comment.target_type = 'game'
+            comment.target_id = comment.game_id
+        db.session.commit()
+
 
 # Flask-Login user loader
 @login_manager.user_loader
@@ -381,6 +390,8 @@ def post_comment(game_id):
     comment = Comment(
         content=content,
         tag=tag,
+        target_type='game',
+        target_id=game_id,
         game_id=game_id,
         user_id=current_user.id if current_user.is_authenticated else None,
         guest_name='guest',  # Always 'guest' for non-authenticated users
@@ -440,6 +451,99 @@ def change_comment_tag(game_id, comment_id):
 
     flash('Comment tag updated successfully!', 'success')
     return redirect(url_for('game_detail', game_id=game_id))
+
+
+# ============================================================================
+# REQUESTS BOARD ROUTES
+# ============================================================================
+
+@app.route('/requests')
+def requests_board():
+    """Requests board page - public, shows all request board comments."""
+    # Get filter parameters
+    tag_filter = request.args.get('tag_filter', '')
+
+    # Load all top-level requests board comments
+    query = Comment.query.filter_by(target_type='request', parent_id=None)
+
+    # Apply tag filter
+    if tag_filter == 'no_tag':
+        query = query.filter(Comment.tag.is_(None))
+    elif tag_filter and tag_filter != 'all':
+        query = query.filter_by(tag=tag_filter)
+
+    comments = query.order_by(Comment.created_at.asc()).all()
+
+    # Auto-restore hidden comments (7-day rule)
+    auto_restore_hidden_comments(comments)
+    db.session.commit()
+
+    # Filter out hidden comments (no author concept on requests board, so hide from everyone)
+    def filter_hidden(comment_list):
+        filtered = []
+        for comment in comment_list:
+            if comment.tag != 'hidden':
+                filtered.append(comment)
+                # Recursively filter replies
+                if comment.replies:
+                    comment.replies = filter_hidden(comment.replies)
+        return filtered
+
+    comments = filter_hidden(comments)
+
+    return render_template('requests.html', comments=comments, tag_filter=tag_filter)
+
+
+@app.route('/requests/comment', methods=['POST'])
+def post_request_comment():
+    """Post a comment or reply on the requests board - open to both users and guests."""
+    content = request.form.get('content', '').strip()
+    tag = request.form.get('tag', '').strip() or None  # Allow empty tag
+    parent_id = request.form.get('parent_id', None)
+
+    # Validation
+    if not content:
+        flash('Comment cannot be empty.', 'error')
+        return redirect(url_for('requests_board'))
+
+    if len(content) > 1000:
+        flash('Comment is too long (maximum 1000 characters).', 'error')
+        return redirect(url_for('requests_board'))
+
+    # Validate tag (optional but must be valid if provided)
+    ALLOWED_TAGS = ['feedback', 'bug', 'request', 'discussion']
+    if tag and tag not in ALLOWED_TAGS:
+        flash('Invalid tag. Please select a valid tag.', 'error')
+        return redirect(url_for('requests_board'))
+
+    # Validate parent_id if provided
+    if parent_id:
+        try:
+            parent_id = int(parent_id)
+            parent_comment = Comment.query.get(parent_id)
+            if not parent_comment or parent_comment.target_type != 'request':
+                flash('Invalid reply target.', 'error')
+                return redirect(url_for('requests_board'))
+        except ValueError:
+            parent_id = None
+
+    # Create comment for requests board
+    comment = Comment(
+        content=content,
+        tag=tag,
+        target_type='request',
+        target_id=None,
+        game_id=None,  # No game association
+        user_id=current_user.id if current_user.is_authenticated else None,
+        guest_name='guest',  # Always 'guest' for non-authenticated users
+        parent_id=parent_id
+    )
+
+    db.session.add(comment)
+    db.session.commit()
+
+    flash('Comment posted successfully!', 'success')
+    return redirect(url_for('requests_board'))
 
 
 if __name__ == '__main__':
