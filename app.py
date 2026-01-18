@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 from email_validator import validate_email, EmailNotValidError
 from config import Config
 from models import db, User, Game
+from urllib.parse import urlparse, urljoin
 import os
 
 app = Flask(__name__)
@@ -33,6 +34,19 @@ def load_user(user_id):
 # Helper function to check allowed file extensions
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+
+# Helper function to validate redirect URLs (prevents open redirect attacks)
+def is_safe_url(target):
+    """
+    Validate that a redirect URL is safe (same domain).
+    Prevents open redirect vulnerabilities.
+    """
+    if not target:
+        return False
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
 
 
 # ============================================================================
@@ -105,8 +119,11 @@ def login():
         if user and user.check_password(password):
             login_user(user)
             flash(f'Welcome back, {user.username}!', 'success')
+            # Validate redirect URL to prevent open redirect attacks
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('index'))
+            if next_page and is_safe_url(next_page):
+                return redirect(next_page)
+            return redirect(url_for('index'))
         else:
             flash('Invalid username or password.', 'error')
 
