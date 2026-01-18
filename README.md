@@ -1,4 +1,4 @@
-# pyforge-mvp
+<img width="2390" height="1370" alt="image" src="https://github.com/user-attachments/assets/2a17b1e3-2bf4-4bb5-8cb5-74b6c3c93b75" /># pyforge-mvp
 
 ## PyForge MVP
 
@@ -24,3 +24,12 @@ Flask
 SQLite
 
 Jinja2
+
+## Setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
