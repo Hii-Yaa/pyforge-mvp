@@ -134,3 +134,57 @@ Implemented:
 - 管理者アカウント（is_admin）と管理画面（通報/hidden一覧、削除判断など）
 - ~~ホームに「サイト全体への要望」掲示板（グローバルスレッド）~~ ✅ 実装済み (v0.3 Requests Board)
 - スパム対策（レート制限、CAPTCHA、NGワードなど）
+
+## Features (MVP)
+
+### Accounts
+- User registration / login / logout (Flask-Login)
+- Passwords are stored as secure hashes (bcrypt)
+
+### Game Posting
+- Upload a ZIP file as a game
+- Public game list
+- Game detail page
+- Download ZIP
+- Only the author can edit/delete their game
+
+### Comments (Per-Game)
+- Anyone can post comments (guest posting allowed; default guest name: "guest")
+- Nested replies (comment threads)
+- Optional tags: feedback / bug / request / discussion (tag can be empty)
+- Filter comments by tag
+- Author highlight:
+  - Author comments show a ★
+  - Author username area has a gray background
+- Author can change comment tags for organization
+- Optional moderation flow (current behavior if enabled):
+  - "hidden" tag can temporarily hide comments from others
+  - hidden is auto-restored after 7 days
+  - tag changes are recorded in history
+
+### Global Requests Board
+- A separate page for site-wide requests, feedback, and discussion
+- Same comment system as per-game comments:
+  - guest posting, nested replies, optional tags, tag filtering
+
+## Routes (High-level)
+- `/` : Game list
+- `/register`, `/login`, `/logout`
+- `/game/upload`
+- `/game/<id>` : Game detail + comments
+- `/game/<id>/download`
+- `/game/<id>/edit` (author only)
+- `/game/<id>/delete` (author only)
+- `/requests` : Global requests board
+
+## Data Storage
+- SQLite database file: `instance/app.db`
+- Uploaded files are stored under: `uploads/`
+
+## Run Locally
+```bash
+pip install -r requirements.txt
+python app.py
+
+Then open: http://localhost:5000
+---
