@@ -255,6 +255,79 @@ def logout():
 
 
 # ============================================================================
+# ACCOUNT SETTINGS ROUTES
+# ============================================================================
+
+@app.route('/account')
+@login_required
+def account():
+    """Account settings page - shows user profile and settings forms."""
+    return render_template('account.html', user=current_user)
+
+
+@app.route('/account/username', methods=['POST'])
+@login_required
+def change_username():
+    """Change username - authenticated users only."""
+    new_username = request.form.get('new_username', '').strip()
+
+    # Validation
+    errors = []
+    if not new_username:
+        errors.append('Username cannot be empty.')
+    elif len(new_username) < 3 or len(new_username) > 20:
+        errors.append('Username must be between 3 and 20 characters.')
+    else:
+        # Check for duplicate username (but allow current username)
+        existing_user = User.query.filter_by(username=new_username).first()
+        if existing_user and existing_user.id != current_user.id:
+            errors.append('Username already exists.')
+
+    if errors:
+        for error in errors:
+            flash(error, 'error')
+        return redirect(url_for('account'))
+
+    # Update username
+    old_username = current_user.username
+    current_user.username = new_username
+    db.session.commit()
+
+    flash(f'Username successfully changed from "{old_username}" to "{new_username}".', 'success')
+    return redirect(url_for('account'))
+
+
+@app.route('/account/password', methods=['POST'])
+@login_required
+def change_password():
+    """Change password - authenticated users only."""
+    current_password = request.form.get('current_password', '')
+    new_password = request.form.get('new_password', '')
+    confirm_password = request.form.get('confirm_password', '')
+
+    # Validation
+    errors = []
+    if not current_user.check_password(current_password):
+        errors.append('Current password is incorrect.')
+    if not new_password or len(new_password) < 8:
+        errors.append('New password must be at least 8 characters long.')
+    if new_password != confirm_password:
+        errors.append('New password and confirmation do not match.')
+
+    if errors:
+        for error in errors:
+            flash(error, 'error')
+        return redirect(url_for('account'))
+
+    # Update password
+    current_user.set_password(new_password)
+    db.session.commit()
+
+    flash('Password successfully changed.', 'success')
+    return redirect(url_for('account'))
+
+
+# ============================================================================
 # GAME ROUTES
 # ============================================================================
 

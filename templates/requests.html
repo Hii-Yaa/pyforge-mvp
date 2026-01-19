@@ -70,7 +70,7 @@
             {% endif %}
             <strong>
                 {% if comment.user_id %}
-                    {{ comment.author.username }}
+                    {{ comment.author.username }}({{ comment.author.id }})
                 {% else %}
                     {{ comment.guest_name }}
                 {% endif %}
