@@ -72,9 +72,15 @@ class Comment(db.Model):
     deleted_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     delete_reason = db.Column(db.String(200), nullable=True)
 
+    # Report resolution fields
+    is_report_resolved = db.Column(db.Boolean, default=False, nullable=False)
+    report_resolved_at = db.Column(db.DateTime, nullable=True)
+    report_resolved_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
     # Relationships
     author = db.relationship('User', foreign_keys=[user_id], backref='comments', lazy=True)
     deleted_by = db.relationship('User', foreign_keys=[deleted_by_user_id], lazy=True)
+    report_resolved_by = db.relationship('User', foreign_keys=[report_resolved_by_user_id], lazy=True)
     replies = db.relationship('Comment', backref=db.backref('parent', remote_side=[id]), lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
