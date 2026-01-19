@@ -122,6 +122,45 @@ Implemented:
 
 ---
 
+## Comment Reporting（コメント通報機能）
+
+コミュニティの健全性を保つため、誰でもコメントを通報できる機能を実装しています。
+
+### できること
+
+#### 1. コメントの通報（誰でも可能）
+- **誰でも通報可能**：ログインユーザーはもちろん、ゲストユーザーも通報できます
+- 各コメントに「Report」ボタンが表示されます（ゲーム詳細ページ、Requests Boardの両方）
+- 通報時に理由を添えることができます（任意）
+
+#### 2. 二重通報防止
+- **24時間以内の連打を防止**：同じユーザー（またはIP）が同じコメントを24時間以内に複数回通報できません
+- ログインユーザーは `user_id` で、ゲストは `IP address` で識別します
+- 既に通報済みの場合は「already reported」メッセージが表示されます
+
+#### 3. 管理者専用機能
+- **通報数の表示**：管理者だけが各コメントの横に「Reports: N」という通報数を見ることができます
+- **通報一覧ページ**：
+  - ナビゲーションに「Admin Reports (N)」リンクが表示されます（Nは通報されたコメント数）
+  - `/admin/reports` で通報されたコメント一覧を確認できます
+  - 通報数、最新通報日時、コメント内容、投稿者、場所（ゲームorリクエストボード）などが表示されます
+  - その場でコメントを削除または復元できます
+
+#### 4. プライバシー保護
+- **通報数は一般ユーザーには表示されません**：管理者のみが確認できます
+- 通報者の情報（IPアドレス等）は一般ユーザーには公開されません
+
+### テクニカル詳細
+- データベースに `Report` テーブルを追加
+- フィールド：
+  - `comment_id`（通報対象のコメント）
+  - `reporter_user_id`（ログインユーザーの場合）
+  - `reporter_ip`（IPアドレス、取得可能な範囲で）
+  - `reason`（通報理由、任意）
+  - `created_at`（通報日時）
+
+---
+
 ### データ保存（SQLite）
 - ローカルでは SQLite を使用します。
 - DBファイルはプロジェクトの `instance/` 配下（例：`instance/app.db`）に作成されます。
@@ -130,8 +169,8 @@ Implemented:
 
 ### 今後の拡張候補（アイデア）
 - コメント本文検索、並び替え（新しい順/古い順）
-- 通報機能（通報数を管理者が確認）
-- 管理者アカウント（is_admin）と管理画面（通報/hidden一覧、削除判断など）
+- ~~通報機能（通報数を管理者が確認）~~ ✅ 実装済み (v0.4 Comment Reporting)
+- ~~管理者アカウント（is_admin）と管理画面（通報/hidden一覧、削除判断など）~~ ✅ 実装済み (v0.4 Admin Reports Dashboard)
 - ~~ホームに「サイト全体への要望」掲示板（グローバルスレッド）~~ ✅ 実装済み (v0.3 Requests Board)
 - スパム対策（レート制限、CAPTCHA、NGワードなど）
 
@@ -167,6 +206,17 @@ Implemented:
 - Same comment system as per-game comments:
   - guest posting, nested replies, optional tags, tag filtering
 
+### Comment Reporting (v0.4)
+- Anyone can report comments (including guests)
+- Duplicate report prevention (24-hour cooldown per user/IP)
+- Report counts are visible only to admins
+- Admin dashboard at `/admin/reports` shows:
+  - All reported comments
+  - Report counts and latest report timestamps
+  - Direct links to comment locations (game or requests board)
+  - Quick actions: delete or restore comments
+- Navigation badge shows number of reported comments (admin only)
+
 ## Routes (High-level)
 - `/` : Game list
 - `/register`, `/login`, `/logout`
@@ -176,6 +226,8 @@ Implemented:
 - `/game/<id>/edit` (author only)
 - `/game/<id>/delete` (author only)
 - `/requests` : Global requests board
+- `/comment/<id>/report` : Report a comment (anyone)
+- `/admin/reports` : Admin reports dashboard (admin only)
 
 ## Data Storage
 - SQLite database file: `instance/app.db`

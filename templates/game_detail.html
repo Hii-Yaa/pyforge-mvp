@@ -94,6 +94,9 @@
                 {% endif %}
             </strong>
             <small>{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            {% if is_admin and comment.reports|length > 0 %}
+                <strong style="color: #ff6600; margin-left: 10px;">Reports: {{ comment.reports|length }}</strong>
+            {% endif %}
         </p>
         {% if comment.is_deleted %}
             <p style="color: #666; font-style: italic;">[Content deleted{% if comment.delete_reason %}: {{ comment.delete_reason }}{% endif %}]</p>
@@ -103,6 +106,9 @@
 
         {% if not comment.is_deleted %}
             <button onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Reply</button>
+            <form method="POST" action="{{ url_for('report_comment', comment_id=comment.id) }}" style="display: inline; margin-left: 10px;">
+                <button type="submit" style="color: #ff6600;" onclick="return confirm('Report this comment?')">Report</button>
+            </form>
         {% endif %}
 
         {% if is_author and not comment.is_deleted %}
