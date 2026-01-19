@@ -99,3 +99,20 @@ class CommentTagHistory(db.Model):
 
     def __repr__(self):
         return f'<TagHistory {self.comment_id}: {self.old_tag} -> {self.new_tag}>'
+
+
+class Report(db.Model):
+    """Report model for comment reports - anyone can report including guests."""
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    reporter_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Logged in users
+    reporter_ip = db.Column(db.String(45), nullable=True)  # IP address (IPv4 or IPv6)
+    reason = db.Column(db.String(200), nullable=True)  # Optional reason
+
+    # Relationships
+    comment = db.relationship('Comment', backref='reports', lazy=True)
+    reporter = db.relationship('User', foreign_keys=[reporter_user_id], lazy=True)
+
+    def __repr__(self):
+        return f'<Report {self.id} on Comment {self.comment_id}>'

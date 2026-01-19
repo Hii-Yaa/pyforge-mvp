@@ -3,7 +3,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.utils import secure_filename
 from email_validator import validate_email, EmailNotValidError
 from config import Config
-from models import db, User, Game, Comment, CommentTagHistory
+from models import db, User, Game, Comment, CommentTagHistory, Report
 from urllib.parse import urlparse, urljoin
 from datetime import datetime, timedelta
 import os
@@ -765,6 +765,91 @@ def post_request_comment():
 
     flash('Comment posted successfully!', 'success')
     return redirect(url_for('requests_board'))
+
+
+# ============================================================================
+# COMMENT REPORT ROUTES
+# ============================================================================
+
+@app.route('/comment/<int:comment_id>/report', methods=['POST'])
+def report_comment(comment_id):
+    """Report a comment - anyone can report including guests."""
+    comment = Comment.query.get_or_404(comment_id)
+
+    # Get reporter information
+    reporter_user_id = current_user.id if current_user.is_authenticated else None
+    reporter_ip = request.remote_addr
+    reason = request.form.get('reason', '').strip() or None
+
+    # Check for duplicate reports within 24 hours
+    time_threshold = datetime.utcnow() - timedelta(hours=24)
+
+    if reporter_user_id:
+        # For logged-in users, check by user_id
+        existing_report = Report.query.filter(
+            Report.comment_id == comment_id,
+            Report.reporter_user_id == reporter_user_id,
+            Report.created_at >= time_threshold
+        ).first()
+    else:
+        # For guests, check by IP address
+        existing_report = Report.query.filter(
+            Report.comment_id == comment_id,
+            Report.reporter_ip == reporter_ip,
+            Report.created_at >= time_threshold
+        ).first()
+
+    if existing_report:
+        flash('You have already reported this comment recently.', 'warning')
+    else:
+        # Create new report
+        new_report = Report(
+            comment_id=comment_id,
+            reporter_user_id=reporter_user_id,
+            reporter_ip=reporter_ip,
+            reason=reason
+        )
+        db.session.add(new_report)
+        db.session.commit()
+        flash('Comment reported. Thank you for helping maintain our community.', 'success')
+
+    # Redirect back to the appropriate page
+    if comment.target_type == 'game' and comment.target_id:
+        return redirect(url_for('game_detail', game_id=comment.target_id))
+    else:
+        return redirect(url_for('requests_board'))
+
+
+@app.route('/admin/reports')
+@admin_required
+def admin_reports():
+    """Admin page to view all reported comments."""
+    # Get all comments with reports
+    from sqlalchemy import func
+
+    # Query comments that have reports, with report counts and latest report time
+    reported_comments = db.session.query(
+        Comment,
+        func.count(Report.id).label('report_count'),
+        func.max(Report.created_at).label('latest_report_at')
+    ).join(Report).group_by(Comment.id).order_by(
+        func.count(Report.id).desc(),
+        func.max(Report.created_at).desc()
+    ).all()
+
+    return render_template('admin_reports.html', reported_comments=reported_comments)
+
+
+# Context processor to provide report count to all templates
+@app.context_processor
+def inject_report_count():
+    """Inject reported comment count for admin navigation badge."""
+    if current_user.is_authenticated and current_user.is_admin:
+        # Count unique comments with at least one report
+        from sqlalchemy import func
+        reported_count = db.session.query(func.count(func.distinct(Report.comment_id))).scalar() or 0
+        return {'reported_comment_count': reported_count}
+    return {'reported_comment_count': 0}
 
 
 if __name__ == '__main__':

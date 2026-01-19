@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Reports - Game Sharing Platform{% endblock %}
+
+{% block content %}
+<h2>Admin Reports Dashboard</h2>
+<p>This page shows all comments that have been reported by users. Take action on reported content to maintain community standards.</p>
+
+<hr>
+
+{% if reported_comments %}
+    <p><strong>Total reported comments:</strong> {{ reported_comments|length }}</p>
+
+    <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; margin-top: 20px;">
+        <thead>
+            <tr style="background-color: #f0f0f0;">
+                <th>Reports</th>
+                <th>Latest Report</th>
+                <th>Comment</th>
+                <th>Author</th>
+                <th>Posted</th>
+                <th>Location</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for comment, report_count, latest_report_at in reported_comments %}
+            <tr style="{% if comment.is_deleted %}background-color: #ffe0e0;{% endif %}">
+                <td style="text-align: center;">
+                    <strong style="color: #ff6600; font-size: 1.2em;">{{ report_count }}</strong>
+                </td>
+                <td style="text-align: center;">
+                    <small>{{ latest_report_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </td>
+                <td>
+                    {% if comment.is_deleted %}
+                        <strong style="color: #ff0000;">[DELETED]</strong><br>
+                        <em style="color: #666;">{{ comment.delete_reason or 'No reason provided' }}</em>
+                    {% else %}
+                        {% if comment.tag %}
+                            <strong style="color: #666;">
+                                {% if comment.tag == 'feedback' %}[感想]
+                                {% elif comment.tag == 'bug' %}[バグ報告]
+                                {% elif comment.tag == 'request' %}[要望]
+                                {% elif comment.tag == 'discussion' %}[議論]
+                                {% elif comment.tag == 'hidden' %}[非表示]
+                                {% endif %}
+                            </strong>
+                        {% endif %}
+                        <p style="margin: 5px 0;">
+                            {{ comment.content[:100] }}{% if comment.content|length > 100 %}...{% endif %}
+                        </p>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if comment.user_id %}
+                        {{ comment.author.username }} ({{ comment.author.id }})
+                    {% else %}
+                        {{ comment.guest_name }}
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    <small>{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </td>
+                <td>
+                    {% if comment.target_type == 'game' and comment.target_id %}
+                        <a href="{{ url_for('game_detail', game_id=comment.target_id) }}">
+                            Game: {{ comment.game.title }}
+                        </a>
+                    {% elif comment.target_type == 'request' %}
+                        <a href="{{ url_for('requests_board') }}">
+                            Requests Board
+                        </a>
+                    {% else %}
+                        Unknown
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    {% if comment.is_deleted %}
+                        <form method="POST" action="{{ url_for('restore_comment', comment_id=comment.id) }}" style="display: inline;">
+                            <button type="submit" style="color: green;">Restore</button>
+                        </form>
+                    {% else %}
+                        <button onclick="toggleDeleteForm('delete-form-{{ comment.id }}')" style="color: red;">Delete</button>
+                        <div id="delete-form-{{ comment.id }}" style="display: none; margin-top: 5px;">
+                            <form method="POST" action="{{ url_for('delete_comment', comment_id=comment.id) }}" style="display: inline;">
+                                <input type="text" name="reason" placeholder="Reason (optional)" size="20">
+                                <button type="submit" style="color: red;">Confirm</button>
+                                <button type="button" onclick="toggleDeleteForm('delete-form-{{ comment.id }}')">Cancel</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p style="color: green; font-weight: bold; margin-top: 20px;">No reported comments. Community is healthy!</p>
+{% endif %}
+
+<script>
+function toggleDeleteForm(formId) {
+    var form = document.getElementById(formId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+</script>
+
+<hr>
+<p><a href="{{ url_for('index') }}">Back to home</a></p>
+{% endblock %}
