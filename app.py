@@ -57,6 +57,19 @@ with app.app_context():
         # Column might not exist yet on first run after schema update
         db.session.rollback()
 
+    # Migration: Initialize report resolution fields for existing comments
+    try:
+        comments_to_update = Comment.query.filter(Comment.is_report_resolved == None).all()
+        if comments_to_update:
+            for comment in comments_to_update:
+                comment.is_report_resolved = False
+            db.session.commit()
+            print(f'[Migration] Initialized is_report_resolved for {len(comments_to_update)} comments')
+    except Exception as e:
+        # Column might not exist yet on first run after schema update
+        db.session.rollback()
+        print(f'[Migration] Note: Report resolution columns will be added on first run: {e}')
+
     # Bootstrap admin account
     def ensure_bootstrap_admin():
         """
@@ -781,6 +794,10 @@ def report_comment(comment_id):
     reporter_ip = request.remote_addr
     reason = request.form.get('reason', '').strip() or None
 
+    # Validate reason length (max 200 characters)
+    if reason and len(reason) > 200:
+        reason = reason[:200]  # Truncate to 200 characters
+
     # Check for duplicate reports within 24 hours
     time_threshold = datetime.utcnow() - timedelta(hours=24)
 
@@ -820,35 +837,109 @@ def report_comment(comment_id):
         return redirect(url_for('requests_board'))
 
 
+@app.route('/admin/reports/<int:comment_id>/resolve', methods=['POST'])
+@admin_required
+def resolve_report(comment_id):
+    """Mark all reports for a comment as resolved - admin only."""
+    comment = Comment.query.get_or_404(comment_id)
+
+    # Set resolution fields
+    comment.is_report_resolved = True
+    comment.report_resolved_at = datetime.utcnow()
+    comment.report_resolved_by_user_id = current_user.id
+
+    db.session.commit()
+    flash('Reports marked as resolved.', 'success')
+
+    return redirect(url_for('admin_reports'))
+
+
+@app.route('/admin/reports/<int:comment_id>/unresolve', methods=['POST'])
+@admin_required
+def unresolve_report(comment_id):
+    """Mark all reports for a comment as unresolved - admin only."""
+    comment = Comment.query.get_or_404(comment_id)
+
+    # Clear resolution fields
+    comment.is_report_resolved = False
+    comment.report_resolved_at = None
+    comment.report_resolved_by_user_id = None
+
+    db.session.commit()
+    flash('Reports marked as unresolved.', 'success')
+
+    return redirect(url_for('admin_reports'))
+
+
 @app.route('/admin/reports')
 @admin_required
 def admin_reports():
-    """Admin page to view all reported comments."""
-    # Get all comments with reports
-    from sqlalchemy import func
+    """Admin page to view all reported comments with filtering and sorting."""
+    from sqlalchemy import func, desc, asc
 
-    # Query comments that have reports, with report counts and latest report time
-    reported_comments = db.session.query(
+    # Get query parameters
+    status_filter = request.args.get('status', 'unresolved')  # unresolved, resolved, all
+    sort_by = request.args.get('sort', 'latest')  # latest, count
+    order_by = request.args.get('order', 'desc')  # desc, asc
+
+    # Base query: comments with reports, with report counts and latest report time
+    query = db.session.query(
         Comment,
         func.count(Report.id).label('report_count'),
         func.max(Report.created_at).label('latest_report_at')
-    ).join(Report).group_by(Comment.id).order_by(
-        func.count(Report.id).desc(),
-        func.max(Report.created_at).desc()
-    ).all()
+    ).join(Report).group_by(Comment.id)
 
-    return render_template('admin_reports.html', reported_comments=reported_comments)
+    # Apply status filter
+    if status_filter == 'unresolved':
+        query = query.filter(Comment.is_report_resolved == False)
+    elif status_filter == 'resolved':
+        query = query.filter(Comment.is_report_resolved == True)
+    # 'all' shows both resolved and unresolved
+
+    # Apply sorting
+    if sort_by == 'count':
+        # Sort by report count
+        if order_by == 'asc':
+            query = query.order_by(asc(func.count(Report.id)))
+        else:
+            query = query.order_by(desc(func.count(Report.id)))
+    else:  # sort_by == 'latest'
+        # Sort by latest report time
+        if order_by == 'asc':
+            query = query.order_by(asc(func.max(Report.created_at)))
+        else:
+            query = query.order_by(desc(func.max(Report.created_at)))
+
+    reported_comments = query.all()
+
+    # Get latest report reason for each comment
+    comments_with_reasons = []
+    for comment, report_count, latest_report_at in reported_comments:
+        # Get the latest report for this comment
+        latest_report = Report.query.filter_by(comment_id=comment.id).order_by(
+            Report.created_at.desc()
+        ).first()
+        latest_reason = latest_report.reason if latest_report else None
+        comments_with_reasons.append((comment, report_count, latest_report_at, latest_reason))
+
+    return render_template('admin_reports.html',
+                         reported_comments=comments_with_reasons,
+                         status_filter=status_filter,
+                         sort_by=sort_by,
+                         order_by=order_by)
 
 
 # Context processor to provide report count to all templates
 @app.context_processor
 def inject_report_count():
-    """Inject reported comment count for admin navigation badge."""
+    """Inject unresolved reported comment count for admin navigation badge."""
     if current_user.is_authenticated and current_user.is_admin:
-        # Count unique comments with at least one report
+        # Count unique comments with at least one report and not resolved
         from sqlalchemy import func
-        reported_count = db.session.query(func.count(func.distinct(Report.comment_id))).scalar() or 0
-        return {'reported_comment_count': reported_count}
+        unresolved_count = db.session.query(func.count(func.distinct(Report.comment_id))).join(
+            Comment, Report.comment_id == Comment.id
+        ).filter(Comment.is_report_resolved == False).scalar() or 0
+        return {'reported_comment_count': unresolved_count}
     return {'reported_comment_count': 0}
 
 

@@ -8,29 +8,62 @@
 
 <hr>
 
+<!-- Filter and Sort UI -->
+<div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px;">
+    <form method="GET" action="{{ url_for('admin_reports') }}" style="display: inline;">
+        <label for="status">Status:</label>
+        <select name="status" id="status" onchange="this.form.submit()">
+            <option value="unresolved" {% if status_filter == 'unresolved' %}selected{% endif %}>Unresolved</option>
+            <option value="resolved" {% if status_filter == 'resolved' %}selected{% endif %}>Resolved</option>
+            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+        </select>
+
+        <label for="sort" style="margin-left: 15px;">Sort by:</label>
+        <select name="sort" id="sort" onchange="this.form.submit()">
+            <option value="latest" {% if sort_by == 'latest' %}selected{% endif %}>Latest Report</option>
+            <option value="count" {% if sort_by == 'count' %}selected{% endif %}>Report Count</option>
+        </select>
+
+        <label for="order" style="margin-left: 15px;">Order:</label>
+        <select name="order" id="order" onchange="this.form.submit()">
+            <option value="desc" {% if order_by == 'desc' %}selected{% endif %}>Descending</option>
+            <option value="asc" {% if order_by == 'asc' %}selected{% endif %}>Ascending</option>
+        </select>
+    </form>
+</div>
+
 {% if reported_comments %}
-    <p><strong>Total reported comments:</strong> {{ reported_comments|length }}</p>
+    <p><strong>Total reported comments (filtered):</strong> {{ reported_comments|length }}</p>
 
     <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; margin-top: 20px;">
         <thead>
             <tr style="background-color: #f0f0f0;">
                 <th>Reports</th>
                 <th>Latest Report</th>
+                <th>Report Reason</th>
                 <th>Comment</th>
                 <th>Author</th>
                 <th>Posted</th>
                 <th>Location</th>
+                <th>Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-            {% for comment, report_count, latest_report_at in reported_comments %}
-            <tr style="{% if comment.is_deleted %}background-color: #ffe0e0;{% endif %}">
+            {% for comment, report_count, latest_report_at, latest_reason in reported_comments %}
+            <tr style="{% if comment.is_deleted %}background-color: #ffe0e0;{% elif comment.is_report_resolved %}background-color: #e0ffe0;{% endif %}">
                 <td style="text-align: center;">
                     <strong style="color: #ff6600; font-size: 1.2em;">{{ report_count }}</strong>
                 </td>
                 <td style="text-align: center;">
                     <small>{{ latest_report_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </td>
+                <td>
+                    {% if latest_reason %}
+                        <em style="color: #666;">{{ latest_reason }}</em>
+                    {% else %}
+                        <em style="color: #999;">(no reason)</em>
+                    {% endif %}
                 </td>
                 <td>
                     {% if comment.is_deleted %}
@@ -76,6 +109,31 @@
                     {% endif %}
                 </td>
                 <td style="text-align: center;">
+                    {% if comment.is_report_resolved %}
+                        <strong style="color: green;">Resolved</strong><br>
+                        <small style="color: #666;">
+                            {{ comment.report_resolved_at.strftime('%Y-%m-%d %H:%M') }}<br>
+                            by {{ comment.report_resolved_by.username }}
+                        </small>
+                    {% else %}
+                        <strong style="color: #ff6600;">Unresolved</strong>
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    <!-- Resolution Actions -->
+                    {% if comment.is_report_resolved %}
+                        <form method="POST" action="{{ url_for('unresolve_report', comment_id=comment.id) }}" style="display: inline; margin-bottom: 5px;">
+                            <button type="submit" style="color: #ff6600;">Mark Unresolved</button>
+                        </form>
+                        <br>
+                    {% else %}
+                        <form method="POST" action="{{ url_for('resolve_report', comment_id=comment.id) }}" style="display: inline; margin-bottom: 5px;">
+                            <button type="submit" style="color: green;">Mark Resolved</button>
+                        </form>
+                        <br>
+                    {% endif %}
+
+                    <!-- Delete/Restore Actions -->
                     {% if comment.is_deleted %}
                         <form method="POST" action="{{ url_for('restore_comment', comment_id=comment.id) }}" style="display: inline;">
                             <button type="submit" style="color: green;">Restore</button>

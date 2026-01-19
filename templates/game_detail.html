@@ -106,9 +106,16 @@
 
         {% if not comment.is_deleted %}
             <button onclick="toggleReplyForm('reply-form-{{ comment.id }}')">Reply</button>
-            <form method="POST" action="{{ url_for('report_comment', comment_id=comment.id) }}" style="display: inline; margin-left: 10px;">
-                <button type="submit" style="color: #ff6600;" onclick="return confirm('Report this comment?')">Report</button>
-            </form>
+            <button onclick="toggleReportForm('report-form-{{ comment.id }}')" style="color: #ff6600; margin-left: 10px;">Report</button>
+            <div id="report-form-{{ comment.id }}" style="display: none; margin-top: 10px; padding: 10px; background-color: #fff5f0; border: 1px solid #ff6600; border-radius: 5px;">
+                <form method="POST" action="{{ url_for('report_comment', comment_id=comment.id) }}">
+                    <label for="reason-{{ comment.id }}">Report reason (optional, max 200 chars):</label><br>
+                    <textarea name="reason" id="reason-{{ comment.id }}" rows="3" cols="40" placeholder="Describe the issue..." maxlength="200"></textarea>
+                    <br>
+                    <button type="submit" style="color: #ff6600;">Submit Report</button>
+                    <button type="button" onclick="toggleReportForm('report-form-{{ comment.id }}')">Cancel</button>
+                </form>
+            </div>
         {% endif %}
 
         {% if is_author and not comment.is_deleted %}
@@ -182,6 +189,15 @@
 
 <script>
 function toggleReplyForm(formId) {
+    var form = document.getElementById(formId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+function toggleReportForm(formId) {
     var form = document.getElementById(formId);
     if (form.style.display === 'none') {
         form.style.display = 'block';
