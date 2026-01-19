@@ -85,7 +85,7 @@
             {% endif %}
             <strong {% if comment.user_id == game.uploader_id %}style="background-color: #d3d3d3; padding: 2px 5px; border-radius: 3px;"{% endif %}>
                 {% if comment.user_id %}
-                    {{ comment.author.username }}
+                    {{ comment.author.username }}({{ comment.author.id }})
                     {% if comment.user_id == game.uploader_id %}
                         ★
                     {% endif %}

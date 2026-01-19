@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Account Settings - Game Sharing Platform{% endblock %}
+
+{% block content %}
+<h2>Account Settings</h2>
+
+<hr>
+
+<h3>Your Account Information</h3>
+<p><strong>User ID:</strong> {{ user.id }}</p>
+<p><strong>Username:</strong> {{ user.username }}</p>
+<p><strong>Email:</strong> {{ user.email }} <em>(display only)</em></p>
+
+<hr>
+
+<h3>Change Username</h3>
+<form method="POST" action="{{ url_for('change_username') }}">
+    <label for="new_username">New Username:</label><br>
+    <input type="text" id="new_username" name="new_username"
+           value="{{ user.username }}"
+           minlength="3" maxlength="20" required><br>
+    <small>Username must be between 3 and 20 characters.</small><br><br>
+    <button type="submit">Update Username</button>
+</form>
+
+<hr>
+
+<h3>Change Password</h3>
+<form method="POST" action="{{ url_for('change_password') }}">
+    <label for="current_password">Current Password:</label><br>
+    <input type="password" id="current_password" name="current_password" required><br><br>
+
+    <label for="new_password">New Password:</label><br>
+    <input type="password" id="new_password" name="new_password"
+           minlength="8" required><br>
+    <small>Password must be at least 8 characters long.</small><br><br>
+
+    <label for="confirm_password">Confirm New Password:</label><br>
+    <input type="password" id="confirm_password" name="confirm_password"
+           minlength="8" required><br><br>
+
+    <button type="submit">Update Password</button>
+</form>
+
+<hr>
+
+<p><a href="{{ url_for('index') }}">Back to home</a></p>
+{% endblock %}
