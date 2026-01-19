@@ -57,6 +57,44 @@ with app.app_context():
         # Column might not exist yet on first run after schema update
         db.session.rollback()
 
+    # Bootstrap admin account
+    def ensure_bootstrap_admin():
+        """
+        Ensure a bootstrap admin account exists for local development.
+        Can be disabled by setting DISABLE_BOOTSTRAP_ADMIN=1 environment variable.
+        """
+        # Check if bootstrap is disabled
+        if os.environ.get('DISABLE_BOOTSTRAP_ADMIN') == '1':
+            print('[Bootstrap] Admin bootstrap disabled (DISABLE_BOOTSTRAP_ADMIN=1)')
+            return
+
+        # Check if admin user exists
+        admin_user = User.query.filter_by(username='admin').first()
+
+        if admin_user:
+            # User exists - ensure is_admin is True (promote if needed)
+            if not admin_user.is_admin:
+                admin_user.is_admin = True
+                db.session.commit()
+                print('[Bootstrap] ⚠️  Admin user promoted to admin role (username: admin)')
+            else:
+                print('[Bootstrap] Admin user already exists (username: admin)')
+        else:
+            # Create new bootstrap admin
+            admin_user = User(
+                username='admin',
+                email='admin@local',
+                is_admin=True
+            )
+            admin_user.set_password('admin')
+            db.session.add(admin_user)
+            db.session.commit()
+            print('[Bootstrap] ✓ Bootstrap admin created (username: admin, password: admin, email: admin@local)')
+            print('[Bootstrap] ⚠️  WARNING: Change the admin password immediately!')
+
+    # Run bootstrap admin function
+    ensure_bootstrap_admin()
+
 
 # Flask-Login user loader
 @login_manager.user_loader

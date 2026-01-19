@@ -187,3 +187,31 @@ pip install -r requirements.txt
 python app.py
 ```
 Then open: http://localhost:5000
+
+## Bootstrap Admin Account
+
+For local development convenience, a default admin account is automatically created on startup:
+
+**Credentials:**
+- Username: `admin`
+- Password: `admin`
+- Email: `admin@local`
+
+**⚠️ IMPORTANT SECURITY NOTES:**
+1. **Change the password immediately** after first login!
+2. This bootstrap account is intended for **local development only**
+3. For production deployments, disable bootstrap admin by setting:
+   ```bash
+   export DISABLE_BOOTSTRAP_ADMIN=1
+   ```
+
+**Bootstrap Behavior:**
+- If `admin` user doesn't exist → creates it with default credentials
+- If `admin` user exists but isn't admin → promotes to admin role
+- If `admin` user exists and is admin → no changes (password is NOT reset)
+- Startup logs will indicate what action was taken
+
+**Production Setup:**
+1. Set `DISABLE_BOOTSTRAP_ADMIN=1` environment variable
+2. Create admin account manually via registration
+3. Promote to admin via database or migration script
